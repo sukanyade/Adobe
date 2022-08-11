@@ -1,0 +1,39 @@
+Comment: >-
+  This step function conditionally invokes glue pre-processing and processing
+  jobs for input data
+StartAt: Initialize
+States:
+  Initialize:
+    Type: Pass
+    ResultPath: $.args
+    Next: Processing Glue Job
+  Processing Glue Job:
+    Type: Task
+    Resource: arn:aws:states:::glue:startJobRun.sync
+    Parameters:
+      JobName: get-revenue-daily
+      Arguments:
+        '--source_bucket_name': sukde-input-raw-bucket
+        '--key': 08-11-2022/data.tsv
+        '--target_bucket_name': sukde-output-curated-bucket
+        '--target_folder': output_data/08-11-2022
+        '--log_level': INFO
+    End: true
+    Retry:
+      - ErrorEquals:
+          - States.ALL
+        IntervalSeconds: 600
+        BackoffRate: 2
+        MaxAttempts: 2
+    Catch:
+      - ErrorEquals:
+          - States.ALL
+        Next: FailStepFunction
+  FailStepFunction:
+    Type: Task
+    Resource: arn:aws:states:::sns:publish
+    Parameters:
+      TopicArn: arn:aws:sns:us-west-2:436165336607:get-revenue-failure-notification
+      Message: Execution failed for process-get-revenue
+      Subject: Failed Test
+    End: true
